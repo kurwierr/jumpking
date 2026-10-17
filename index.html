@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jump King</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22%23000%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%228%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #000;
@@ -23,8 +24,6 @@
     line-height: 1.5;
   }
   .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
-  header { text-align: center; margin-bottom: 20px; }
-  header h1 { margin: 0; font-size: 30px; letter-spacing: 1px; }
 
   nav.tabs {
     display: flex;
@@ -53,6 +52,14 @@
   section.tab.active { display: block; }
   section.tab h2 { margin-top: 0; font-size: 22px; }
   p.desc { color: var(--muted); margin-top: 0; }
+
+  /* hide number input spinners */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
   label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   input[type="number"] {
@@ -206,14 +213,20 @@
     .step-sub { padding-left: 44px; }
     .ach-tags { padding-left: 44px; }
   }
+
+  /* Cursor spotlight on panels */
+  section.tab { --base: var(--panel); }
+  .step-block.done { --base: var(--done-bg); }
+  section.tab, .step-block.done {
+    background:
+      radial-gradient(circle 170px at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,var(--glow, 0)), rgba(255,255,255,0) 70%),
+      var(--base);
+    transition: background-color .2s;
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-
-  <header>
-    <h1>JUMP KING</h1>
-  </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="validator">Run Time Validator</button>
@@ -224,15 +237,13 @@
   <!-- Run Time Validator -->
   <section class="tab active" id="validator">
     <h2>Run Time Validator</h2>
-    <p class="desc">Enter your final time to check if it is a valid run. A time is valid only if the total milliseconds are divisible by 17 (one frame = 17ms).</p>
 
     <div class="time-grid">
-      <div><label for="v-h">Hours</label><input type="number" id="v-h" min="0" value="0"></div>
-      <div><label for="v-m">Minutes</label><input type="number" id="v-m" min="0" max="59" value="0"></div>
-      <div><label for="v-s">Seconds</label><input type="number" id="v-s" min="0" max="59" value="0"></div>
-      <div><label for="v-ms">Millisec.</label><input type="number" id="v-ms" min="0" max="999" value="0"></div>
+      <div><label for="v-h">Hours</label><input type="number" id="v-h" value="0"></div>
+      <div><label for="v-m">Minutes</label><input type="number" id="v-m" value="0"></div>
+      <div><label for="v-s">Seconds</label><input type="number" id="v-s" value="0"></div>
+      <div><label for="v-ms">Millisec.</label><input type="number" id="v-ms" value="0"></div>
     </div>
-    <button class="primary" id="v-btn">Validate</button>
 
     <div class="result">
       <div class="stats">
@@ -247,22 +258,18 @@
   <!-- Main Babe Wind Cycle -->
   <section class="tab" id="wind">
     <h2>Main Babe Wind Cycle</h2>
-    <p class="desc">Enter a cycle number to find out when wind starts blowing.</p>
 
     <div class="ref">
-      <b>Reference:</b> Cycle −1 starts at <code>2:15.983</code> (135 983 ms).<br>
-      Each cycle lasts exactly <code>13.056</code> seconds. Frame duration: 17ms.
+      Frame duration: <code>17ms</code>. Each cycle lasts exactly <code>13.056</code> seconds.
     </div>
 
-    <label for="w-cycle">Cycle number (e.g. 0, 1, 5, −1...)</label>
     <div style="display:flex; gap:10px;">
-      <input type="number" id="w-cycle" value="0" step="1">
+      <input type="number" id="w-cycle" value="0" step="1" aria-label="Cycle number">
       <button class="primary" id="w-btn">Calculate</button>
     </div>
 
     <div class="result">
       <div class="big" id="w-start">—</div>
-      <div id="w-text" style="color:var(--muted);font-size:14px">— Enter a cycle number —</div>
     </div>
   </section>
 
@@ -284,7 +291,7 @@
 
     <div id="steps-container"></div>
 
-    <div class="ach-credit">Route by Mental Masochist</div>
+    <div class="ach-credit">Route by <a href="https://www.speedrun.com/users/Mental_Masochist" target="_blank" rel="noopener" style="color:var(--text)">Mental_Masochist</a></div>
   </section>
 
 </div>
@@ -336,8 +343,33 @@
     }
   }
 
-  el('v-btn').addEventListener('click', validateTime);
-  ['v-h', 'v-m', 'v-s', 'v-ms'].forEach(id => el(id).addEventListener('input', validateTime));
+  // Borrow/carry between fields when a value goes out of range
+  // (e.g. ms goes 0 -> -1: seconds drop by 1 and ms becomes 999).
+  function normalizeTime() {
+    const h = parseInt(el('v-h').value, 10) || 0;
+    const m = parseInt(el('v-m').value, 10) || 0;
+    const s = parseInt(el('v-s').value, 10) || 0;
+    const ms = parseInt(el('v-ms').value, 10) || 0;
+    const outOfRange = m < 0 || m > 59 || s < 0 || s > 59 || ms < 0 || ms > 999;
+    if (outOfRange) {
+      let total = ((h * 60 + m) * 60 + s) * 1000 + ms;
+      if (total < 0) total = 0;
+      const nh = Math.floor(total / 3600000);
+      const nm = Math.floor((total % 3600000) / 60000);
+      const ns = Math.floor((total % 60000) / 1000);
+      const nms = total % 1000;
+      el('v-h').value = nh;
+      el('v-m').value = nm;
+      el('v-s').value = ns;
+      el('v-ms').value = nms;
+    }
+  }
+
+  ['v-h', 'v-m', 'v-s', 'v-ms'].forEach(id => el(id).addEventListener('input', () => {
+    normalizeTime();
+    validateTime();
+  }));
+  validateTime();
 
   // ---- Main Babe Wind Cycle ----
   const REF_CYCLE = -1;
@@ -357,23 +389,15 @@
     const raw = el('w-cycle').value.trim();
     if (raw === '') {
       el('w-start').textContent = '—';
-      el('w-text').textContent = '— Enter a cycle number —';
       return;
     }
     const n = parseInt(raw, 10);
     if (isNaN(n)) {
       el('w-start').textContent = '—';
-      el('w-text').textContent = 'Please enter a whole number.';
       return;
     }
     const startMs = REF_START_MS + (n - REF_CYCLE) * CYCLE_MS;
-    const endMs = startMs + CYCLE_MS;
-    const frames = Math.round(startMs / 17);
-
     el('w-start').textContent = `Wind starts at ${formatTime(startMs)}`;
-    el('w-text').textContent =
-      `Cycle ${n} runs from ${formatTime(startMs)} to ${formatTime(endMs)} ` +
-      `(${startMs.toLocaleString('en-US')} ms, ~frame ${frames.toLocaleString('en-US')}).`;
   }
 
   el('w-btn').addEventListener('click', calcWind);
@@ -462,7 +486,6 @@
       div.innerHTML =
         '<div class="step-header">' +
           '<div class="step-check">' + (done ? '✔' : '') + '</div>' +
-          '<span class="step-num">#' + s.n + '</span>' +
           '<span class="step-text">' + escapeHtml(s.text) + '</span>' +
         '</div>' + subHtml + achHtml;
 
@@ -481,6 +504,25 @@
   });
 
   buildAch();
+
+  // ---- Cursor spotlight ----
+  const GLOW_SEL = 'section.tab, .step-block.done';
+  let lastGlow = null;
+  document.addEventListener('mousemove', e => {
+    const t = e.target.closest(GLOW_SEL);
+    if (lastGlow && lastGlow !== t) lastGlow.style.setProperty('--glow', '0');
+    if (t) {
+      const r = t.getBoundingClientRect();
+      t.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      t.style.setProperty('--glow', '0.12');
+    }
+    lastGlow = t;
+  });
+  document.documentElement.addEventListener('mouseleave', () => {
+    if (lastGlow) lastGlow.style.setProperty('--glow', '0');
+    lastGlow = null;
+  });
 </script>
 </body>
 </html>
