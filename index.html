@@ -216,8 +216,7 @@
 
   /* Cursor spotlight on panels */
   section.tab { --base: var(--panel); }
-  .step-block.done { --base: var(--done-bg); }
-  section.tab, .step-block.done {
+  section.tab {
     background:
       radial-gradient(circle 170px at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,var(--glow, 0)), rgba(255,255,255,0) 70%),
       var(--base);
@@ -506,7 +505,7 @@
   buildAch();
 
   // ---- Cursor spotlight ----
-  const GLOW_SEL = 'section.tab, .step-block.done';
+  const GLOW_SEL = 'section.tab';
   let lastGlow = null;
   document.addEventListener('mousemove', e => {
     const t = e.target.closest(GLOW_SEL);
